@@ -191,6 +191,16 @@ d 1.000000
 illum 2
 map_Kd pool_tiles.png
 
+newmtl kenney_pool_tiles_line
+Ns 22.499992
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd pool_tiles_line.png
+
 newmtl kenney_pool_water_tiles
 Ns 22.499992
 Ka 1.000000 1.000000 1.000000
@@ -250,16 +260,6 @@ Ni 1.500000
 d 1.000000
 illum 2
 map_Kd wall_concrete_dirt.png
-
-newmtl kenney_wall_concrete_small
-Ns 22.499992
-Ka 1.000000 1.000000 1.000000
-Ks 0.500000 0.500000 0.500000
-Ke 0.000000 0.000000 0.000000
-Ni 1.500000
-d 1.000000
-illum 2
-map_Kd wall_concrete_small.png
 
 newmtl kenney_wall_yellow_panel
 Ns 22.499992

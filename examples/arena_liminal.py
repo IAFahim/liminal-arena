@@ -9,12 +9,14 @@ an FBX the same, an OBJ with its textures beside it, and a .blend.
     python examples/arena_liminal.py
 
 Not one floor moves: the layout is the blockout's, and tools/check_arena.py runs on the
-GLB this writes as it does on the grey one. The attackers' half is yellow wallpaper over
-red carpet, the defenders' blue over green; site B's courtyard stands in shallow water,
-and each pad is outlined in light.
+GLB this writes as it does on the grey one. The yard is the tiled floor of a drained pool,
+a lane line down each lane, and site B's courtyard the one corner still under water. The
+attackers' half is yellow wallpaper over red carpet, the defenders' blue over green, and
+each pad is outlined in light.
 """
 import json
 import math
+import shutil
 import struct
 import sys
 from pathlib import Path
@@ -38,16 +40,19 @@ UP = Vector((0, 0, 1))
 Y_PANEL, Y_PLAIN = "wall_yellow_pattern_panel", "wall_yellow_small"       # the attackers' walls
 B_PANEL, B_PLAIN = "wall_blue_stripes_panel", "wall_blue_stripes_small"   # the defenders'
 Y_FLAT = "wall_yellow_panel"                 # the attackers' wallpaper, unpatterned: site A's terrace
-CONCRETE, PAVING, ROOFING = "wall_concrete", "wall_concrete_small", "wall_concrete_dirt"
+CONCRETE, PAVING, ROOFING = "wall_concrete", "pool_tiles", "wall_concrete_dirt"   # the yard is pool deck
 EDGE = "#3b2a1d"                             # a door leaf's edges: its own wood, darkened
 
-# (x0, y0, x1, y1, texture, tile width) -- the ground's floor; the first zone to hold a point wins
+# (x0, y0, x1, y1, texture, tile width, the axis its width runs along) -- the ground's floor;
+# the first zone to hold a point wins
 ZONES = [
-    (-29, -15, -11, 3, "carpet_red", 2),          # the store and its pump room
-    (-25, 11, -11, 15, "carpet_red", 2),          # the boiler and the office
-    (11, -3, 29, 15, "carpet_green", 2),          # the workshop and its plant room
-    (11, -15, 25, -11, "carpet_green", 2),        # the lobby and the gatehouse
-    (21, -27, 39, -16, "pool_water_tiles", 1),    # site B's courtyard, under shallow water
+    (-29, -15, -11, 3, "carpet_red", 2, "x"),            # the store and its pump room
+    (-25, 11, -11, 15, "carpet_red", 2, "x"),            # the boiler and the office
+    (11, -3, 29, 15, "carpet_green", 2, "x"),            # the workshop and its plant room
+    (11, -15, 25, -11, "carpet_green", 2, "x"),          # the lobby and the gatehouse
+    (21, -27, 39, -16, "pool_water_tiles", 1, "x"),      # site B's courtyard: the corner still flooded
+    (-35, -27, -34, 8, "pool_tiles_line", 1, "y"),       # a lane line down the west lane, and up the east
+    (34, -16, 35, 27, "pool_tiles_line", 1, "y"),
 ]
 # pad -> (its floor, the tile's width, the colour its outline shines)
 PADS = {"site_a": ("carpet_red", 2, "#ffb547"), "site_b": ("pool_tiles", 1, "#ffb547"),
@@ -225,7 +230,7 @@ def quad(a, b, z):
 
 def floor(ring):
     """The ground's top: cut along every zone's edge, each patch carpeted or tiled as the room
-    it lies in, the rest paving."""
+    it lies in, the rest pool deck."""
     z = ring[0].z
     xs = sorted({p.x for p in ring} | {v for zone in ZONES for v in (zone[0], zone[2])})
     ys = sorted({p.y for p in ring} | {v for zone in ZONES for v in (zone[1], zone[3])})
@@ -233,9 +238,13 @@ def floor(ring):
     for x0, x1 in zip(xs, xs[1:]):
         for y0, y1 in zip(ys, ys[1:]):
             x, y = (x0 + x1) / 2, (y0 + y1) / 2
-            key, width = next(((s[4], s[5]) for s in ZONES if s[0] < x < s[2] and s[1] < y < s[3]), (PAVING, 2))
+            key, width, along = next(((s[4], s[5], s[6]) for s in ZONES if s[0] < x < s[2] and s[1] < y < s[3]),
+                                     (PAVING, 2, "x"))
             cell = quad((x0, y0), (x1, y1), z)
-            faces.append((mat(key), cell, [place(p, UP, width, 0, key) for p in cell]))
+            uv = [place(p, UP, width, 0, key) for p in cell]
+            if along == "y":                  # a lane line runs north: the texture's width lies that way
+                uv = [u[::-1] for u in uv]
+            faces.append((mat(key), cell, uv))
     return faces
 
 
@@ -432,18 +441,21 @@ def main():
     polish(OUT / "arena_liminal.glb")
     bpy.ops.export_scene.fbx(filepath=str(OUT / "arena_liminal.fbx"), object_types={'EMPTY', 'MESH', 'LIGHT'},
                              path_mode='COPY', embed_textures=True, bake_anim=False)
-    (OUT / "obj").mkdir(exist_ok=True)            # the OBJ's textures land beside it, so it gets a room
+    shutil.rmtree(OUT / "obj", ignore_errors=True)   # the OBJ's textures land beside it, so it gets a room of
+    (OUT / "obj").mkdir()                            # its own, emptied first: no texture outlives its use
     bpy.ops.wm.obj_export(filepath=str(OUT / "obj" / "arena_liminal.obj"), forward_axis='NEGATIVE_Z', up_axis='Y',
                           export_materials=True, path_mode='COPY', apply_modifiers=True)
     for image in bpy.data.images:
         if not image.packed_file:
             image.pack()
+    bpy.context.preferences.filepaths.save_version = 0     # and no .blend1 left beside it
     bpy.ops.wm.save_as_mainfile(filepath=str(OUT / "arena_liminal.blend"), compress=True)
     (OUT / "arena_liminal.json").write_text(json.dumps({
         "name": "Liminal Arena", "units": "metres",
         "axes": "x east, y north, z up, as in examples/; the files themselves are Y-up",
         "spawn_attack": [-31, -22.5, 0.05], "spawn_defend": [31, 22.75, 0.05],
         "sites": {"A": [-37, 18, -30, 26], "B": [24, -25, 32, -19]},
+        "water": [list(z[:4]) for z in ZONES if z[4].startswith("pool_water")],   # shallow: for a splash, a slow step
         "vantages": [{"id": v[0], "title": v[4], "at": list(v[1:4]), "counter": c[0]}
                      for v, c in zip(blockout.VANTAGES, blockout.COUNTERS)],
         "textures": "Retro Textures Liminal 1.0 by Kenney (www.kenney.nl), CC0 -- textures/ in this repo",

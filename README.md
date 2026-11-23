@@ -5,14 +5,10 @@ first as a plain grey blockout, then dressed in pixel textures from Kenney's *Re
 (Liminal)* and exported for game engines. The layout is original: it borrows the genre's grammar
 (two sites, a mid, connectors, spawns) and no particular map.
 
-**Status:** the blockout is designed and verified, and the textured arena is exported as GLB, FBX,
-OBJ and `.blend`. Renders of the textured arena and the first release are still to do (see the
-open issue).
-
 | | |
 |---|---|
-| ![Tactics plan](images/arena_tactics.png) | ![Aerial](images/arena_aerial.jpg) |
-| Tactics plan: six vantage points, each with a counter | Aerial of the grey blockout |
+| ![Aerial at dusk](images/liminal_aerial_dusk.jpg) | ![Aerial by day](images/liminal_aerial_day.jpg) |
+| The dressed arena at dusk: each pad's outline and the lit windows carry it | The same view by day |
 
 ## The map
 
@@ -40,31 +36,57 @@ that can be watched, and every strong position has something that answers it.
 | V5 Walk | site B and B main | the crate stair jumps onto its south end |
 | V6 Gatehouse | a window over B main | the plant crate hides from it; its doors face away |
 
-![Plan](images/arena_plan.png)
+![Plan](images/liminal_plan.png)
+
+The plan from above, roofs off. For the same plan as a line drawing, with every vantage's
+sightlines cast against the model and drawn, see [the tactics plan](images/arena_tactics.png).
+
+## The look
+
+Nothing moves: every surface is where the blockout has it. What changes is what it is made of.
+
+- **The yard is pool deck.** The arena is a walled basin with lanes along its sides and a flooded
+  corner, so it is dressed as a drained pool: pale tiles underfoot everywhere out of doors, a teal
+  lane line down the west lane and up the east, and site B's courtyard left under shallow water.
+- **The rooms are carpeted** -- red in the attackers' store, pump room, boiler and office, green in
+  the defenders' workshop, plant room, lobby and gatehouse -- under yellow wallpaper on one side
+  and blue on the other, each above a dark wainscot.
+- **Every roof is a suspended ceiling** of 1 m tiles, one lit every 4 m. The lit tiles glow, and
+  they are what lights every room.
+- **A door stands open in each of the 19 doorways**, every one swinging into a room and never
+  across a path. The two spawn-side doors are emergency exits.
+- **Each pad is outlined in light**: amber for the sites, red for the attackers' spawn, blue for
+  the defenders'.
+
+| | |
+|---|---|
+| ![Mid](images/liminal_mid.jpg) | ![Mid at dusk](images/liminal_mid_dusk.jpg) |
+| Mid by day, from the south court up the ramp to the deck | The same view at dusk, a loft window lit |
+| ![West lane](images/liminal_lane.jpg) | ![Lookout](images/liminal_lookout.jpg) |
+| The west lane: its line underfoot, the ramp up to site A | From the Lookout, over its parapet: that ramp and the lane below |
+| ![Store](images/liminal_store.jpg) | ![Deck](images/liminal_deck.jpg) |
+| Inside the store at dusk, lit only by its ceiling | From the deck: the stairs down to mid north |
+| ![Site B](images/liminal_site_b.jpg) | ![Walk](images/liminal_walk.jpg) |
+| In B main at dusk: the Gatehouse's window, the site pad's outline | From the Walk, over site B's water |
+
+![Blockout and dressed](images/before_after.jpg)
 
 ## Two exports
 
-- **`models/arena_blockout.glb`** — the grey boxes, 181 parts, flat colours. Use it to test the
+- **`models/arena_blockout.glb`** -- the grey boxes, 181 parts, flat colours. Use it to test the
   layout, or as the collision and greybox reference.
-- **`models/liminal/`** — the same geometry to the millimetre, dressed:
+- **`models/liminal/`** -- the same geometry to the millimetre, dressed:
 
 | File | Notes |
 |---|---|
-| `arena_liminal.glb` | textures embedded, 24 lamps, 740 KB |
+| `arena_liminal.glb` | textures embedded, 24 lamps, 750 KB |
 | `arena_liminal.fbx` | textures embedded, lamps |
 | `obj/arena_liminal.obj` | `.mtl` and its 23 textures beside it (OBJ carries no lamps) |
 | `arena_liminal.blend` | the dressed scene, images packed |
-| `arena_liminal.json` | spawns, sites, the vantage/counter table, in the axes of `examples/` |
+| `arena_liminal.json` | spawns, sites, the vantage/counter table and the water, in the axes of `examples/` |
 
-What the dressing adds, and nothing more: a wallpaper panel on the walls (yellow on the
-attackers' side, blue on the defenders'), carpet in the rooms (red, green), a suspended ceiling
-under every roof with a lit tile every 4 m, a door standing open in each of the 19 doorways, each
-pad outlined in light, and site B's courtyard standing in shallow water.
-
-![Mid](images/arena_mid.jpg)
-![Store](images/arena_store.jpg)
-![Site B](images/arena_site_b.jpg)
-![Walk](images/arena_walk.jpg)
+Packed downloads of each are on the [releases](https://github.com/IAFahim/liminal-arena/releases)
+page.
 
 ## Build, check, render
 
@@ -80,9 +102,21 @@ python tools/roundtrip.py models/liminal/arena_liminal.fbx models/liminal/obj/ar
                            models/liminal/arena_liminal.blend  # the other files import at the right size
 
 python render/render_blockout.py models/arena_blockout.glb images/arena_tactics.png tactics
-python render/render_blockout.py models/arena_blockout.glb images/arena_aerial.jpg aerial
-python render/render_blockout.py models/arena_blockout.glb images/arena_mid.jpg eye mid
+python render/render_liminal.py models/liminal/arena_liminal.glb images/liminal_plan.png plan
+python render/render_liminal.py models/liminal/arena_liminal.glb images/x.jpg aerial dusk
+python render/render_liminal.py models/liminal/arena_liminal.glb images/x.jpg eye mid day
 ```
+
+The two renderers share their cameras and callouts (`render/views.py`), so a grey view and a
+dressed one are the same photograph. The dressed ones take `plan`, `aerial`, or one of
+`mid lane lookout store deck b walk`, then `day` or `dusk`; add `50 32` on the end for a quick
+half-size look. A full-size picture takes about half a minute on a GeForce RTX 3060.
+
+```sh
+python tools/package.py 1.0.0 /tmp/liminal-release   # one zip per format, and SHA256SUMS
+```
+
+`images/before_after.jpg` is the two aerials set side by side with ImageMagick's `montage`.
 
 ## Importing it
 
@@ -92,9 +126,19 @@ python render/render_blockout.py models/arena_blockout.glb images/arena_mid.jpg 
 - Each part keeps its own pivot, and each door pivots on its hinge.
 - `Sites` holds the four pads and two empties, `Spawn_Attack` and `Spawn_Defend`.
 - `Markers` holds twelve purple and green plates marking the vantage points and their counters.
-  They are design notes, not level geometry: hide the group.
+  They are design notes, not level geometry: hide the group. `tools/check_arena.py` reads them.
 - `Lights` holds 24 point lights under the lit ceiling tiles. They are optional (no loader has to
   support them); delete the group if you light the level yourself.
+- The water in site B's courtyard is a texture on the flat floor. `arena_liminal.json` gives its
+  rectangle as `water`, for an engine's own splash, reflection or slow step.
+
+## What the renders are
+
+Each dressed picture is Cycles looking at the exported GLB itself: nothing is in the scene that
+the file does not hold, apart from the plain under the arena, the sun, the sky and a thin mist. By
+day the sun does the lighting. At dusk it hangs below the horizon, and the rooms are lit by their
+own ceiling tiles and the pads by their own outlines. The point lamps are hidden in every picture,
+because the lit tiles above them already do their work.
 
 ## What was verified
 
@@ -105,13 +149,14 @@ python render/render_blockout.py models/arena_blockout.glb images/arena_mid.jpg 
   stairs and crates, and so on);
 - 39 of 39 sightlines are open or blocked as designed.
 
-The textured file stands on the same 17,649 floor cells as the grey one, so the open doors close
-no route. The FBX, OBJ and `.blend` were each imported again and measured 80 × 56 × 8 m with all
-23 textures.
+The textured file stands on the same 17,649 floor cells as the grey one, so the open doors and the
+retiled floor close no route. The FBX, OBJ and `.blend` were each imported again into Blender and
+measured 80 × 56 × 8 m with all 23 textures.
 
-Not verified: nothing here has been play-tested. Timings are straight-line estimates at 5.5 m/s,
-and the spawns are not tuned to a defusal rule (the attackers reach site A about 4.7 s before the
-defenders, the defenders reach site B about 1.5 s first).
+Not verified: nothing here has been play-tested, and none of the exports has been opened in a
+game engine. Timings are straight-line estimates at 5.5 m/s, and the spawns are not tuned to a
+defusal rule (the attackers reach site A about 4.7 s before the defenders, the defenders reach
+site B about 1.5 s first).
 
 ## Credits and licence
 
