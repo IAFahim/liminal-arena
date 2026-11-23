@@ -1,0 +1,92 @@
+{
+ "name": "Liminal Arena",
+ "units": "metres",
+ "axes": "x east, y north, z up, as in examples/; the files themselves are Y-up",
+ "spawn_attack": [
+  -31,
+  -22.5,
+  0.05
+ ],
+ "spawn_defend": [
+  31,
+  22.75,
+  0.05
+ ],
+ "sites": {
+  "A": [
+   -37,
+   18,
+   -30,
+   26
+  ],
+  "B": [
+   24,
+   -25,
+   32,
+   -19
+  ]
+ },
+ "vantages": [
+  {
+   "id": "v1",
+   "title": "Lookout",
+   "at": [
+    -27,
+    17.6,
+    2
+   ],
+   "counter": "c1"
+  },
+  {
+   "id": "v2",
+   "title": "Deck",
+   "at": [
+    -2.5,
+    2.5,
+    2.5
+   ],
+   "counter": "c2"
+  },
+  {
+   "id": "v3",
+   "title": "Store loft",
+   "at": [
+    -13.5,
+    -5,
+    2
+   ],
+   "counter": "c3"
+  },
+  {
+   "id": "v4",
+   "title": "Workshop loft",
+   "at": [
+    13.5,
+    5,
+    2
+   ],
+   "counter": "c4"
+  },
+  {
+   "id": "v5",
+   "title": "Walk",
+   "at": [
+    37.5,
+    -21,
+    2
+   ],
+   "counter": "c5"
+  },
+  {
+   "id": "v6",
+   "title": "Gatehouse",
+   "at": [
+    23,
+    -14.4,
+    0
+   ],
+   "counter": "c6"
+  }
+ ],
+ "textures": "Retro Textures Liminal 1.0 by Kenney (www.kenney.nl), CC0 -- textures/ in this repo"
+}

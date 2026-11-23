@@ -1,0 +1,292 @@
+# Blender 5.2.3 LTS MTL File: 'None'
+# www.blender.org
+
+newmtl flat_1eaa6b_1.5
+Ns 22.499992
+Ka 1.000000 1.000000 1.000000
+Kd 0.012983 0.401978 0.147027
+Ks 0.500000 0.500000 0.500000
+Ke 0.019475 0.602967 0.220541
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl flat_3b2a1d_0
+Ns 22.499992
+Ka 1.000000 1.000000 1.000000
+Kd 0.043735 0.023153 0.012286
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl flat_4a8cff_3
+Ns 22.499992
+Ka 1.000000 1.000000 1.000000
+Kd 0.068478 0.262251 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.205435 0.786752 3.000000
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl flat_8e44ad_1.5
+Ns 22.499992
+Ka 1.000000 1.000000 1.000000
+Kd 0.270498 0.057805 0.417885
+Ks 0.500000 0.500000 0.500000
+Ke 0.405747 0.086708 0.626828
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl flat_ff4a3d_3
+Ns 22.499992
+Ka 1.000000 1.000000 1.000000
+Kd 1.000000 0.068478 0.046665
+Ks 0.500000 0.500000 0.500000
+Ke 3.000000 0.205435 0.139995
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl flat_ffb547_3
+Ns 22.499992
+Ka 1.000000 1.000000 1.000000
+Kd 1.000000 0.462077 0.063010
+Ks 0.500000 0.500000 0.500000
+Ke 3.000000 1.386231 0.189030
+Ni 1.500000
+d 1.000000
+illum 2
+
+newmtl kenney_carpet_green
+Ns 22.499992
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd carpet_green.png
+
+newmtl kenney_carpet_red
+Ns 22.499992
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd carpet_red.png
+
+newmtl kenney_carpet_red_detail
+Ns 22.499992
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd carpet_red_detail.png
+
+newmtl kenney_ceiling_medium
+Ns 22.499992
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd ceiling_medium.png
+
+newmtl kenney_ceiling_medium_light_on
+Ns 22.499992
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd ceiling_medium_light_on.png
+map_Ke ceiling_medium_light_on.png
+
+newmtl kenney_ceiling_medium_vent
+Ns 22.499992
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd ceiling_medium_vent.png
+
+newmtl kenney_door_emergency_exit
+Ns 22.499992
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd door_emergency_exit.png
+
+newmtl kenney_door_wood
+Ns 22.499992
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd door_wood.png
+
+newmtl kenney_door_wood_boarded
+Ns 22.499992
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd door_wood_boarded.png
+
+newmtl kenney_door_wood_light
+Ns 22.499992
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd door_wood_light.png
+
+newmtl kenney_metal_structure
+Ns 22.499992
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd metal_structure.png
+
+newmtl kenney_metal_structure_bolts
+Ns 22.499992
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd metal_structure_bolts.png
+
+newmtl kenney_pool_tiles
+Ns 22.499992
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd pool_tiles.png
+
+newmtl kenney_pool_water_tiles
+Ns 22.499992
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd pool_water_tiles.png
+
+newmtl kenney_wall_blue_small
+Ns 22.499992
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd wall_blue_small.png
+
+newmtl kenney_wall_blue_stripes_panel
+Ns 22.499992
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd wall_blue_stripes_panel.png
+
+newmtl kenney_wall_blue_stripes_small
+Ns 22.499992
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd wall_blue_stripes_small.png
+
+newmtl kenney_wall_concrete
+Ns 22.499992
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd wall_concrete.png
+
+newmtl kenney_wall_concrete_dirt
+Ns 22.499992
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd wall_concrete_dirt.png
+
+newmtl kenney_wall_concrete_small
+Ns 22.499992
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd wall_concrete_small.png
+
+newmtl kenney_wall_yellow_panel
+Ns 22.499992
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd wall_yellow_panel.png
+
+newmtl kenney_wall_yellow_pattern_panel
+Ns 22.499992
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd wall_yellow_pattern_panel.png
+
+newmtl kenney_wall_yellow_small
+Ns 22.499992
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd wall_yellow_small.png
