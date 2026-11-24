@@ -1,0 +1,469 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Liminal Arena</title>
+<meta name="description" content="A two-site tactical arena modelled as code with sand3d. Turn it over in your browser, by day and at dusk.">
+<meta name="theme-color" content="#6a7490">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%231c1e2a'/%3E%3Crect x='3' y='3' width='10' height='10' fill='none' stroke='%23ffb547' stroke-width='2'/%3E%3C/svg%3E">
+<style>
+  :root { color-scheme: dark; --glass: rgb(16 18 26 / 0.8); }   /* dark enough to read white over a sunlit floor */
+  html, body { height: 100%; margin: 0; overflow: hidden; background: #6a7490; color: #fff;
+               font: 15px/1.4 system-ui, sans-serif; }
+  canvas { position: fixed; inset: 0; display: block; }
+  .hud { position: fixed; inset: 0; display: flex; flex-direction: column; justify-content: space-between;
+         gap: 12px; padding: 16px; box-sizing: border-box; pointer-events: none; }
+  .bar { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px 12px; flex-wrap: wrap; }
+  h1 { margin: 0; padding: 9px 14px 10px; border-radius: 16px; background: var(--glass);
+       font-size: 20px; font-weight: 650; letter-spacing: 0.01em; }
+  h1 small { display: block; margin-top: 2px; font-size: 13px; font-weight: 400; opacity: 0.85; }
+  .keys, .chips { display: flex; flex-wrap: wrap; gap: 6px; pointer-events: auto; }
+  button { appearance: none; border: 0; border-radius: 999px; padding: 7px 14px; font: inherit; font-size: 13.5px;
+           color: #fff; background: var(--glass); cursor: pointer; text-shadow: 0 1px 2px rgb(0 0 0 / 0.5); }
+  button:hover { background: rgb(40 44 62 / 0.9); }
+  button:focus-visible { outline: 2px solid #ffb547; outline-offset: 2px; }
+  button[aria-pressed="true"] { background: #f4f6fb; color: #1c1e2a; text-shadow: none; }
+  .hint { margin: 0; padding: 6px 12px; border-radius: 999px; background: var(--glass); font-size: 13px;
+          max-width: 100%; box-sizing: border-box; }
+  .hint a { color: inherit; pointer-events: auto; }
+  #status { position: fixed; left: 50%; top: 50%; translate: -50% -50%; padding: 10px 18px; border-radius: 999px;
+            background: var(--glass); font-size: 14px; transition: opacity 0.4s; }
+  noscript p { position: fixed; left: 50%; top: 50%; translate: -50% -50%; margin: 0; }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/build/three.module.js",
+    "three/addons/": "./vendor/three/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<noscript><p>This page draws the arena with JavaScript. The model itself is in the repository.</p></noscript>
+<div id="status">Loading the arena…</div>
+<div class="hud">
+  <div class="bar">
+    <h1>Liminal Arena<small>an 80 × 56 m two-site arena, modelled as code</small></h1>
+    <div class="keys" id="time">
+      <button data-time="0" aria-pressed="true">Day</button>
+      <button data-time="1" aria-pressed="false">Dusk</button>
+    </div>
+  </div>
+  <div class="bar">
+    <div class="chips" id="views"></div>
+    <p class="hint" id="hint"></p>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const MODEL = 'models/liminal/arena_liminal.glb';
+const { degToRad, radToDeg } = THREE.MathUtils;
+const status = document.getElementById('status');
+const instant = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// If anything goes wrong while drawing, say so, rather than leave "Loading" on the screen for good.
+const fail = (message) => {
+  document.body.append(status);
+  status.style.opacity = 1;
+  status.textContent = message;
+};
+window.addEventListener('error', (e) => fail(`The arena could not be drawn: ${e.message}`));
+window.addEventListener('unhandledrejection', () => fail('The arena could not be drawn.'));
+
+// Where the README's pictures stand, in the file's axes: metres, y up, x east, z south.
+// Each is [eye, target, lens on a 36 mm sensor, name].
+const VIEWS = {
+  aerial:  [[-33.3, 80, 50.5],   [-4.4, 0, 7.2],    30, 'Aerial'],
+  mid:     [[-1.5, 1.6, 16],     [0, 2.6, -3],      20, 'Mid'],
+  lane:    [[-35.8, 1.6, -1],    [-31.5, 3.4, -18], 20, 'West lane'],
+  lookout: [[-26.5, 3.6, -16.7], [-35.6, 1.7, -8.9], 30, 'Lookout'],
+  store:   [[-27.5, 1.6, 13.5],  [-14, 2.2, 3],     18, 'Store'],
+  deck:    [[-3.5, 4.2, 0],      [3, 2.2, -11],     20, 'Deck'],
+  b:       [[21.5, 1.6, 22],     [29.2, 1.0, 12.8], 18, 'Site B'],
+  walk:    [[37.5, 3.6, 19.5],   [23, 1.2, 23],     22, 'Walk'],
+};
+
+// What each time of day is made of, measured off the renders. `sun` is the sun's strength on level
+// ground; `sky` is what the sky gives a level white surface; `bounce` is what the ground throws back up
+// at a wall, and `glow` what a room's lit ceiling gives everything in it, each with its colour in linear
+// light; `exposure` is what the renders were given. `haze` is where the haze starts and ends, in metres,
+// in the horizon's colour.
+const TIMES = {
+  day:  { sun: 3.2, sky: 0.42, bounce: 0.4, glow: 0.4, skyColor: [0.45, 0.62, 1], bounceColor: [0.9, 0.9, 0.95],
+          exposure: 0.87, zenith: '#6480a9', horizon: '#8fb0d4', haze: [40, 700] },
+  dusk: { sun: 0,   sky: 0.027, bounce: 0.035, glow: 0.25, skyColor: [0.5, 0.55, 1], bounceColor: [0.7, 0.7, 0.85],
+          exposure: 8, zenith: '#797d9a', horizon: '#9698b4', haze: [300, 2600] },
+};
+for (const t of Object.values(TIMES)) {
+  t.zenith = new THREE.Color(t.zenith);
+  t.horizon = new THREE.Color(t.horizon);
+}
+
+const SUN = new THREE.Vector3(-0.55, 0.55, 0.65).normalize();   // where the sun stands in the day pictures
+const SKY = { elevation: degToRad(40), bearings: [60, 180, 300] };   // the sky, as three lights a third of a turn apart
+const LAMP = 3;   // a downlight, as bright as the lit tile above it: strength 3 over a square metre, 77% of it lit
+const DOWN = new THREE.Vector3(0, -1, 0);
+const FLOOR = 0.3;   // the camera never sinks below this: a little over the arena's lowest floor, which is at 0
+const pads = new Set();
+const roomLight = { value: new THREE.Color() };
+const haze = { near: TIMES.day.haze[0], far: TIMES.day.haze[1] };   // where the mist lies, as the time of day has it
+
+// The address says where the page opens, as #store, #dusk or #store/dusk, and follows the keys from there.
+const [named, when] = location.hash.slice(1).split('/');
+let view = named in VIEWS ? named : 'aerial';
+let wanted = named === 'dusk' || when === 'dusk' ? 1 : 0;
+const writeAddress = () => {
+  try {
+    history.replaceState(null, '', `#${view}${wanted ? '/dusk' : ''}`);
+  } catch { /* an address cannot always be written; it is a convenience */ }
+};
+
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+} catch {
+  fail('This browser cannot draw in 3D (no WebGL 2), so it cannot show the arena.');
+  throw new Error('no WebGL 2');
+}
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.toneMapping = THREE.LinearToneMapping;        // times the exposure, then clipped: the renders' own view
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.shadowMap.autoUpdate = false;                 // nothing in the arena moves, so the shadows are drawn once
+renderer.shadowMap.needsUpdate = true;
+document.body.prepend(renderer.domElement);
+renderer.domElement.addEventListener('webglcontextrestored', () => {
+  renderer.shadowMap.needsUpdate = true;
+  dirty = true;
+});
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0xffffff, TIMES.day.haze[0], TIMES.day.haze[1]);
+
+// The plain the arena stands on, and over it a sky that pales towards the horizon.
+const plain = new THREE.Mesh(
+  new THREE.PlaneGeometry(6000, 6000),
+  new THREE.MeshStandardMaterial({ color: new THREE.Color().setRGB(0.10, 0.11, 0.13), roughness: 1 }));
+plain.rotation.x = -Math.PI / 2;
+plain.position.y = -1.01;
+plain.receiveShadow = true;
+scene.add(plain);
+
+const skyCanvas = document.createElement('canvas');
+skyCanvas.width = 1;
+skyCanvas.height = 256;
+const skyContext = skyCanvas.getContext('2d');
+const skyTexture = new THREE.CanvasTexture(skyCanvas);
+skyTexture.colorSpace = THREE.SRGBColorSpace;
+skyTexture.minFilter = THREE.LinearFilter;
+scene.add(new THREE.Mesh(
+  new THREE.SphereGeometry(4000, 24, 12),
+  new THREE.MeshBasicMaterial({ map: skyTexture, side: THREE.BackSide, fog: false, depthWrite: false, toneMapped: false })));   // its colours are final ones, not to be exposed
+
+function paintSky(horizon, zenith) {
+  const wash = skyContext.createLinearGradient(0, 0, 0, skyCanvas.height / 2);   // the top of the sky down to the horizon
+  wash.addColorStop(0, zenith);
+  wash.addColorStop(1, horizon);
+  skyContext.fillStyle = wash;
+  skyContext.fillRect(0, 0, skyCanvas.width, skyCanvas.height);
+  skyTexture.needsUpdate = true;
+}
+
+// A directional light's shadow covers `reach` metres either side of the arena.
+function casts(light, size, reach, softness) {
+  light.castShadow = true;
+  light.shadow.mapSize.set(size, size);
+  Object.assign(light.shadow.camera, { left: -reach, right: reach, top: reach, bottom: -reach, near: 300 - reach, far: 300 + reach });
+  light.shadow.camera.updateProjectionMatrix();
+  light.shadow.normalBias = softness;
+}
+
+const sun = new THREE.DirectionalLight(new THREE.Color().setRGB(1.0, 0.93, 0.80));
+sun.position.copy(SUN).multiplyScalar(300);
+casts(sun, 4096, 62, 0.05);
+scene.add(sun, sun.target);
+
+// The sky arrives as lights that cast shadows, which is what keeps a roof between it and a room, as in
+// Cycles. A fill without shadows would light every room as if it stood outdoors.
+const sunBearing = Math.atan2(SUN.x, -SUN.z);
+const skyLights = SKY.bearings.map((turn) => {
+  const light = new THREE.DirectionalLight();
+  const bearing = sunBearing + degToRad(turn);
+  light.position
+    .set(Math.sin(bearing) * Math.cos(SKY.elevation), Math.sin(SKY.elevation), -Math.cos(bearing) * Math.cos(SKY.elevation))
+    .multiplyScalar(300);
+  casts(light, 2048, 62, 0.1);
+  scene.add(light, light.target);
+  return light;
+});
+// What a sunlit floor throws back up at walls and soffits. Its upper half is black, since the sky above
+// is already there as the three lights.
+const bounce = new THREE.HemisphereLight(0x000000, 0xffffff, 0);
+scene.add(bounce);
+
+// A light from straight overhead that shines nothing. Its shadow map is the one thing that tells a room
+// from the open air, a roof, and the arena's materials read it again for themselves (see `roomLight`).
+const roof = new THREE.DirectionalLight(0xffffff, 0);
+roof.position.set(0, 300, 0);
+casts(roof, 2048, 62, 0.1);
+scene.add(roof, roof.target);
+const ROOF = scene.children.filter((o) => o.isDirectionalLight).indexOf(roof);   // where it stands among the directional lights
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.3, 12000);
+let wide = 50;   // the field of view across the window's wider side, in degrees
+const upright = (degrees) => camera.aspect >= 1   // the same field, measured up the window
+  ? radToDeg(2 * Math.atan(Math.tan(degToRad(degrees) / 2) / camera.aspect)) : degrees;
+function setFov(degrees) {
+  wide = degrees;
+  camera.fov = upright(degrees);
+  camera.updateProjectionMatrix();
+}
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.zoomToCursor = true;
+controls.minDistance = 1.5;
+controls.maxDistance = 1200;
+
+let dirty = true, glide = null, fade = null, dusk = wanted, free = false;   // `free`: the camera has been moved by hand
+controls.addEventListener('change', () => { dirty = true; });
+controls.addEventListener('start', () => { glide = null; free = true; });
+
+const ease = (t) => t * t * (3 - 2 * t);                // slow at both ends
+const tween = (from, to, ms) => ({ from, to, ms, start: performance.now() });
+const step = (t) => t && ease(Math.min(1, t.ms ? (performance.now() - t.start) / t.ms : 1));
+
+// The aerial is the one view that has to hold the whole arena, whatever shape the window is, so it stands
+// just near enough for all eight corners of the arena's box to clear the writing at the top and the bottom.
+const corners = [];
+for (const x of [-41, 41]) for (const y of [-1, 8]) for (const z of [-29, 29]) corners.push(new THREE.Vector3(x, y, z));
+const probe = new THREE.PerspectiveCamera();
+const scratch = new THREE.Vector3();
+const [head, foot] = document.querySelectorAll('.hud .bar');
+const REACH = 50;   // the arena's radius about the origin, the farthest any of it stands from its middle
+function poseOf(name) {
+  const [eye, at, lens] = VIEWS[name];
+  const pose = { eye: new THREE.Vector3(...eye), at: new THREE.Vector3(...at), fov: radToDeg(2 * Math.atan(18 / lens)) };
+  if (name !== 'aerial') return pose;
+  const direction = pose.eye.clone().sub(pose.at).normalize();   // the way the README's aerial looks at it
+  pose.at.set(0, 1.5, 0);                                         // at the middle of the arena, so that it sits square in any window
+  probe.aspect = camera.aspect;
+  probe.fov = upright(pose.fov);
+  probe.updateProjectionMatrix();
+  const clear = (bar) => bar.getBoundingClientRect().height + 36;   // the writing, its margin and a little air
+  const across = 1 - 32 / window.innerWidth;
+  const upward = Math.max(0.2, 1 - (clear(head) + clear(foot)) / window.innerHeight);
+  const spill = (distance) => {            // how far the box's corners run past the clear part of the window; 1 is its edge
+    probe.position.copy(pose.at).addScaledVector(direction, distance);
+    probe.lookAt(pose.at);
+    probe.updateMatrixWorld();
+    let worst = 0;
+    for (const corner of corners) {
+      scratch.copy(corner).project(probe);
+      worst = Math.max(worst, Math.abs(scratch.x) / across, Math.abs(scratch.y) / upward);
+    }
+    return worst;
+  };
+  let near = 10, far = pose.eye.distanceTo(pose.at);   // the README's own stand, if that is far enough back
+  while (spill(far) > 1) far *= 2;
+  for (let i = 0; i < 24; i++) {                      // halve the gap, to the nearest stand that clears
+    const mid = (near + far) / 2;
+    if (spill(mid) > 1) near = mid; else far = mid;
+  }
+  pose.eye.copy(pose.at).addScaledVector(direction, far);
+  return pose;
+}
+
+function go(name) {
+  view = name;
+  free = false;
+  glide = tween({ eye: camera.position.clone(), at: controls.target.clone(), fov: wide }, poseOf(name), instant ? 0 : 1400);
+  for (const chip of document.querySelectorAll('#views button')) {
+    chip.setAttribute('aria-pressed', chip.dataset.view === name);
+  }
+  writeAddress();
+}
+
+function lightAt(k) {                                    // k: how far into dusk, 0 by day and 1 at dusk
+  const day = TIMES.day, night = TIMES.dusk;
+  const line = (a, b) => a + (b - a) * k;                // in a straight line
+  const stops = (a, b) => Math.max(a, 1e-4) * Math.pow(Math.max(b, 1e-4) / Math.max(a, 1e-4), k);   // in stops, so that nothing flashes
+  const tint = (colour, a, b) => colour.setRGB(line(a[0], b[0]), line(a[1], b[1]), line(a[2], b[2]));
+  const exposure = stops(day.exposure, night.exposure);
+  renderer.toneMappingExposure = exposure;
+  sun.intensity = stops(day.sun, night.sun) / SUN.y;     // a light's strength is measured flat-on
+  const each = stops(day.sky, night.sky) * Math.PI / (skyLights.length * Math.sin(SKY.elevation));
+  for (const lamp of skyLights) {
+    lamp.intensity = each;
+    tint(lamp.color, day.skyColor, night.skyColor);
+  }
+  bounce.intensity = stops(day.bounce, night.bounce) * Math.PI;
+  tint(bounce.groundColor, day.bounceColor, night.bounceColor);
+  roomLight.value.setRGB(1.0, 0.93, 0.82).multiplyScalar(line(day.glow, night.glow));   // the lamps' own colour
+  scene.fog.color.copy(day.horizon).lerp(night.horizon, k);
+  haze.near = line(day.haze[0], night.haze[0]);
+  haze.far = line(day.haze[1], night.haze[1]);
+  paintSky('#' + scene.fog.color.getHexString(), '#' + day.zenith.clone().lerp(night.zenith, k).getHexString());
+  for (const m of pads) m.emissiveIntensity = 1.2 / exposure;   // an outline kept at its own colour, not burnt to white
+  dirty = true;
+}
+
+renderer.setAnimationLoop(() => {
+  if (glide) {
+    const k = step(glide);
+    camera.position.lerpVectors(glide.from.eye, glide.to.eye, k);
+    controls.target.lerpVectors(glide.from.at, glide.to.at, k);
+    setFov(glide.from.fov + (glide.to.fov - glide.from.fov) * k);
+    if (k === 1) glide = null;
+    dirty = true;
+  }
+  if (fade) {
+    const k = step(fade);
+    dusk = fade.from + (fade.to - fade.from) * k;
+    lightAt(dusk);
+    if (k === 1) fade = null;
+  }
+  // The camera keeps out of the floor. The orbit is closed where it would go under it, which leaves the
+  // README's standpoints as they are: three of them look a little upwards.
+  controls.maxPolarAngle = Math.acos(THREE.MathUtils.clamp((FLOOR - controls.target.y) / camera.position.distanceTo(controls.target), -1, 1));
+  controls.update();                                     // damping: the camera glides on after a drag
+  // The haze lies over the plain and never on the arena: from a stand far back (the aerial in a narrow
+  // window) it begins past the arena's far side, as the renders' layer of mist does.
+  scene.fog.near = Math.max(haze.near, camera.position.length() - REACH);
+  scene.fog.far = haze.far + scene.fog.near - haze.near;
+  if (dirty) {
+    renderer.render(scene, camera);
+    dirty = false;
+  }
+});
+
+// The keys on the page: where to stand, and whether it is day.
+const keys = document.querySelectorAll('#time button');
+const showTime = () => { for (const key of keys) key.setAttribute('aria-pressed', Number(key.dataset.time) === wanted); };
+const chips = document.getElementById('views');
+for (const [name, def] of Object.entries(VIEWS)) {
+  const chip = document.createElement('button');
+  chip.textContent = def[3];
+  chip.dataset.view = name;
+  chip.setAttribute('aria-pressed', name === view);
+  chip.addEventListener('click', () => go(name));
+  chips.append(chip);
+}
+document.getElementById('time').addEventListener('click', ({ target }) => {
+  const to = Number(target.dataset.time);
+  if (target.tagName !== 'BUTTON' || to === wanted) return;
+  wanted = to;
+  fade = tween(dusk, to, instant ? 0 : 1200);
+  showTime();
+  writeAddress();
+});
+showTime();
+document.getElementById('hint').innerHTML = matchMedia('(pointer: coarse)').matches
+  ? 'One finger to orbit, two to zoom and pan · <a href="https://github.com/IAFahim/liminal-arena">GitHub</a>'
+  : 'Drag to orbit · scroll to zoom · right-drag to pan · <a href="https://github.com/IAFahim/liminal-arena">GitHub</a>';
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  setFov(wide);
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  if (view === 'aerial' && !free) {                     // the one view that is framed to the window's shape
+    const pose = poseOf('aerial');
+    if (glide) glide.to = pose;
+    else {
+      camera.position.copy(pose.eye);
+      controls.target.copy(pose.at);
+    }
+  }
+  dirty = true;
+});
+
+const first = poseOf(view);
+camera.position.copy(first.eye);
+controls.target.copy(first.at);
+setFov(first.fov);
+lightAt(dusk);
+
+// How wide a lamp's light may open without touching a wall: rays go out from the lamp, and the nearest
+// wall they find sets the cone, from the lamp down to the floor under it. So narrowed, a downlight
+// stays in its own room without a shadow, of which a browser can afford only a few.
+const ray = new THREE.Raycaster();
+ray.far = 14;
+const sideways = new THREE.Vector3();
+function spread(from, solids) {
+  let wall = ray.far;
+  for (let i = 0; i < 16; i++) {
+    sideways.set(Math.cos(i * Math.PI / 8), 0, Math.sin(i * Math.PI / 8));
+    ray.set(from, sideways);
+    wall = Math.min(wall, ray.intersectObjects(solids, false)[0]?.distance ?? ray.far);
+  }
+  ray.set(from, DOWN);
+  const under = ray.intersectObjects(solids, false)[0]?.distance ?? from.y;
+  return THREE.MathUtils.clamp(Math.atan2(0.8 * wall, under), degToRad(12), degToRad(60));
+}
+
+// What the arena is made of, doctored so that each material reads the overhead light's shadow map once
+// more and, wherever a roof is in the way, adds the glow of the lit ceiling above. In Cycles that glow
+// bounces around the room; in a browser it lights nothing, and a room would be black but for its tiles.
+const GLOW = `
+#if defined( USE_SHADOWMAP ) && NUM_DIR_LIGHT_SHADOWS > ${ROOF}
+reflectedLight.indirectDiffuse += roomLight * ( 1.0 - getShadow( directionalShadowMap[ ${ROOF} ], directionalLightShadows[ ${ROOF} ].shadowMapSize, 1.0, directionalLightShadows[ ${ROOF} ].shadowBias, directionalLightShadows[ ${ROOF} ].shadowRadius, vDirectionalShadowCoord[ ${ROOF} ] ) ) * BRDF_Lambert( material.diffuseColor );
+#endif`;
+const lit = (m) => {
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.roomLight = roomLight;
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <lights_pars_begin>', '#include <lights_pars_begin>\nuniform vec3 roomLight;')
+      .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\n' + GLOW);
+  };
+  m.customProgramCacheKey = () => 'room';
+};
+
+// The arena itself.
+new GLTFLoader().load(MODEL, ({ scene: arena }) => {
+  const markers = arena.getObjectByName('Markers');
+  if (markers) markers.visible = false;                  // design plates, not level geometry
+  arena.updateMatrixWorld(true);
+  const solids = [], lamps = [], materials = new Set();
+  arena.traverse((part) => {
+    if (part.isPointLight) lamps.push(part);
+    if (!part.isMesh) return;
+    part.castShadow = part.receiveShadow = true;
+    for (let o = part; o; o = o.parent) if (o === markers) return;
+    solids.push(part);
+    for (const m of [].concat(part.material)) {
+      materials.add(m);
+      if (m.map) m.map.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+      if (m.emissiveIntensity > 1 && !m.emissiveMap) pads.add(m);
+    }
+  });
+  for (const m of materials) lit(m);
+  // Cycles, which made the README's pictures, has every lit ceiling tile light its room. A browser has
+  // no such thing, so each of the file's point lamps gives way, where it stands, to a downlight as bright
+  // as the tile above it. The file itself is not touched.
+  for (const lamp of lamps) {
+    const down = new THREE.SpotLight(lamp.color, LAMP, 0, spread(lamp.getWorldPosition(new THREE.Vector3()), solids), 0.4, 2);
+    down.position.copy(lamp.position);
+    down.target.position.set(lamp.position.x, lamp.position.y - 1, lamp.position.z);
+    lamp.parent.add(down, down.target);
+    lamp.removeFromParent();
+  }
+  scene.add(arena);
+  renderer.shadowMap.needsUpdate = true;
+  lightAt(dusk);
+  status.style.opacity = 0;
+  setTimeout(() => status.remove(), 500);
+}, (e) => {
+  if (e.total) status.textContent = `Loading the arena… ${Math.round(100 * e.loaded / e.total)}%`;
+}, (error) => {
+  fail(`The arena could not be loaded (${error?.message ?? error}). Opened as a file, this page needs its folder served over HTTP.`);
+});
+</script>
+</body>
+</html>

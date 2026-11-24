@@ -5,6 +5,9 @@ first as a plain grey blockout, then dressed in pixel textures from Kenney's *Re
 (Liminal)* and exported for game engines. The layout is original: it borrows the genre's grammar
 (two sites, a mid, connectors, spawns) and no particular map.
 
+**See it in a browser:** [iafahim.github.io/liminal-arena](https://iafahim.github.io/liminal-arena/) --
+the dressed arena to turn under your pointer, by day and at dusk ([how it is made](#in-a-browser)).
+
 | | |
 |---|---|
 | ![Aerial at dusk](images/liminal_aerial_dusk.jpg) | ![Aerial by day](images/liminal_aerial_day.jpg) |
@@ -88,6 +91,24 @@ Nothing moves: every surface is where the blockout has it. What changes is what 
 Packed downloads of each are on the [releases](https://github.com/IAFahim/liminal-arena/releases)
 page.
 
+## In a browser
+
+**[iafahim.github.io/liminal-arena](https://iafahim.github.io/liminal-arena/)** is GitHub Pages
+serving this repository's root. The page is one file, `index.html`, and there is no build step: it
+loads `models/liminal/arena_liminal.glb` into [three.js](https://threejs.org/) r187, which is kept
+whole in `vendor/three/` (MIT, as three.js is) rather than fetched from a CDN.
+
+- It opens on the aerial. The keys along the bottom glide to the cameras of the pictures above;
+  **Day** and **Dusk** cross-fade between the two lightings. Drag to orbit, scroll to zoom.
+- The address names a view and a time, so a link can open on one: `#store`, `#dusk`, `#lane/dusk`.
+- Two things differ from the file, in the browser only. `Markers` is hidden. And the 24 point lamps
+  are swapped at load for downlights as bright as the lit tiles above them, because a browser cannot
+  light a room by its ceiling the way Cycles does. The model itself is not touched.
+- It needs WebGL 2, and draws only when something has changed.
+
+To look at a local copy, serve the repository rather than opening the file, since the page loads
+modules: `python -m http.server 8000`, then <http://localhost:8000/>.
+
 ## Build, check, render
 
 Needs Python 3.13 (or 3.11). `pip install sand3d` brings Blender's `bpy` module with it; this was
@@ -153,10 +174,19 @@ The textured file stands on the same 17,649 floor cells as the grey one, so the 
 retiled floor close no route. The FBX, OBJ and `.blend` were each imported again into Blender and
 measured 80 × 56 × 8 m with all 23 textures.
 
-Not verified: nothing here has been play-tested, and none of the exports has been opened in a
-game engine. Timings are straight-line estimates at 5.5 m/s, and the spawns are not tuned to a
+The browser page was checked in Chromium at 1600 × 1000, in windows the shape of a phone upright and
+on its side, and in every view at both times of day, with nothing in the console; and in Firefox at
+1600 × 1000 in four views, by what its canvas held. In Chromium it was also driven by machine with a
+real pointer, wheel and window resize, on a GeForce RTX 3060, where a frame takes about 1.5 ms. Its
+shaders use 10 of the 15 varying vectors, 8 of the 16 texture units and 194 of the 224 fragment
+uniform vectors that WebGL 2 promises every machine, so they should fit a phone or an old graphics
+chip.
+
+Not verified: nothing here has been play-tested, and none of the exports has been opened in a game
+engine. Timings are straight-line estimates at 5.5 m/s, and the spawns are not tuned to a
 defusal rule (the attackers reach site A about 4.7 s before the defenders, the defenders reach
-site B about 1.5 s first).
+site B about 1.5 s first). The browser page was not tried in Safari or on a real phone, and
+Firefox saw it only standing still.
 
 ## Credits and licence
 
