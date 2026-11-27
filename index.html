@@ -19,6 +19,8 @@
        font-size: 20px; font-weight: 650; letter-spacing: 0.01em; }
   h1 small { display: block; margin-top: 2px; font-size: 13px; font-weight: 400; opacity: 0.85; }
   .keys, .chips { display: flex; flex-wrap: wrap; gap: 6px; pointer-events: auto; }
+  .bar > .keys { justify-content: flex-end; }   /* its sets of keys end at the window's corner, wrapped or not */
+  #time { margin-left: 18px; }                  /* the time of day stands apart from the choice of file */
   button { appearance: none; border: 0; border-radius: 999px; padding: 7px 14px; font: inherit; font-size: 13.5px;
            color: #fff; background: var(--glass); cursor: pointer; text-shadow: 0 1px 2px rgb(0 0 0 / 0.5); }
   button:hover { background: rgb(40 44 62 / 0.9); }
@@ -45,10 +47,16 @@
 <div id="status">Loading the arena…</div>
 <div class="hud">
   <div class="bar">
-    <h1>Liminal Arena<small>an 80 × 56 m two-site arena, modelled as code</small></h1>
-    <div class="keys" id="time">
-      <button data-time="0" aria-pressed="true">Day</button>
-      <button data-time="1" aria-pressed="false">Dusk</button>
+    <h1>Liminal Arena<small id="about">an 80 × 56 m two-site arena, modelled as code</small></h1>
+    <div class="keys">
+      <div class="keys" id="model">
+        <button data-model="packed" aria-pressed="true" title="One mesh for the arena, every texture in one atlas">Packed</button>
+        <button data-model="source" aria-pressed="false" title="Every part its own object, each texture its own image">Source</button>
+      </div>
+      <div class="keys" id="time">
+        <button data-time="0" aria-pressed="true">Day</button>
+        <button data-time="1" aria-pressed="false">Dusk</button>
+      </div>
     </div>
   </div>
   <div class="bar">
@@ -62,7 +70,19 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-const MODEL = 'models/liminal/arena_liminal.glb';
+// The two files the page can show: the packed export, which it opens on, and the dressed arena with
+// every part its own object. `?model=` names either, as in ?model=models/liminal/arena_liminal.glb,
+// or any other file. The keys marked Packed and Source swap between the two.
+const FILES = {
+  packed: 'models/liminal/arena_liminal_packed.glb',
+  source: 'models/liminal/arena_liminal.glb',
+};
+const MODEL = new URLSearchParams(location.search).get('model') || FILES.packed;
+// What the title says of each: the files' own counts, as the README has them.
+const ABOUT = {
+  [FILES.packed]: 'an 80 × 56 m two-site arena, modelled as code · 2,461 triangles, one atlas',
+  [FILES.source]: 'an 80 × 56 m two-site arena, modelled as code · 5,900 triangles, every part its own object',
+};
 const { degToRad, radToDeg } = THREE.MathUtils;
 const status = document.getElementById('status');
 const instant = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -114,19 +134,22 @@ const pads = new Set();
 const roomLight = { value: new THREE.Color() };
 const haze = { near: TIMES.day.haze[0], far: TIMES.day.haze[1] };   // where the mist lies, as the time of day has it
 
-// The address says where the page opens, as #store, #dusk or #store/dusk, and follows the keys from there.
+// The address says where the page opens, as #store, #dusk or #store/dusk, and follows the keys from
+// there. It names the file only where that is not the packed one, and is written from the path up:
+// given only a hash, the browser would keep the file it was asked for before.
+let file = MODEL;   // the file on screen, or the last one asked for
 const [named, when] = location.hash.slice(1).split('/');
 let view = named in VIEWS ? named : 'aerial';
 let wanted = named === 'dusk' || when === 'dusk' ? 1 : 0;
 const writeAddress = () => {
   try {
-    history.replaceState(null, '', `#${view}${wanted ? '/dusk' : ''}`);
+    history.replaceState(null, '', location.pathname + `${file === FILES.packed ? '' : `?model=${file}`}#${view}${wanted ? '/dusk' : ''}`);
   } catch { /* an address cannot always be written; it is a convenience */ }
 };
 
 let renderer;
 try {
-  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer = new THREE.WebGLRenderer({ antialias: false });   // the smoothing is done in the page's own buffer, below
 } catch {
   fail('This browser cannot draw in 3D (no WebGL 2), so it cannot show the arena.');
   throw new Error('no WebGL 2');
@@ -138,6 +161,35 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
 renderer.shadowMap.autoUpdate = false;                 // nothing in the arena moves, so the shadows are drawn once
 renderer.shadowMap.needsUpdate = true;
+
+// The arena is smoothed here, not by the canvas. A canvas that smooths itself and is drawn only when
+// something changes came, on one graphics path (ANGLE's OpenGL, an NVIDIA card), to rest on a frame of
+// its own: a bridge, a kiosk or the whole arena missing until something made the page draw again. A
+// plain canvas did not. This buffer smooths as the canvas did, four samples to a pixel, and is drawn
+// into as the canvas was: `isXRRenderTarget` is how three.js marks a buffer that gets the canvas's tone
+// mapping and colour space, material by material, with the sky and the outline left out as before.
+const smooth = new THREE.WebGLRenderTarget(1, 1, { samples: Math.min(4, renderer.capabilities.maxSamples) });
+smooth.texture.colorSpace = THREE.SRGBColorSpace;
+smooth.texture.internalFormat = 'RGBA8';               // eight bits, as a canvas holds: the copy hands them on unchanged
+smooth.texture.minFilter = smooth.texture.magFilter = THREE.NearestFilter;
+smooth.isXRRenderTarget = true;
+const toCanvas = new THREE.ShaderMaterial({
+  toneMapped: false, depthTest: false, depthWrite: false,
+  uniforms: { tDiffuse: { value: smooth.texture } },
+  vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
+  fragmentShader: 'uniform sampler2D tDiffuse; varying vec2 vUv; void main() { gl_FragColor = texture2D(tDiffuse, vUv); }' });
+const screenScene = new THREE.Scene(), screenCamera = new THREE.Camera();
+screenScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), toCanvas)).frustumCulled = false;
+const fitSmooth = () => smooth.setSize(renderer.domElement.width, renderer.domElement.height);
+const drawTo = renderer.render.bind(renderer);
+renderer.info.autoReset = false;
+renderer.render = (what, cam) => {                     // to draw the arena on the canvas is one call still, whoever asks
+  if (what !== scene || renderer.getRenderTarget()) return drawTo(what, cam);
+  renderer.info.reset();                               // and what the page drew is counted over both passes
+  renderer.setRenderTarget(smooth); drawTo(scene, cam);
+  renderer.setRenderTarget(null); drawTo(screenScene, screenCamera);
+};
+fitSmooth();
 document.body.prepend(renderer.domElement);
 renderer.domElement.addEventListener('webglcontextrestored', () => {
   renderer.shadowMap.needsUpdate = true;
@@ -373,6 +425,7 @@ window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   setFov(wide);
   renderer.setSize(window.innerWidth, window.innerHeight);
+  fitSmooth();
   if (view === 'aerial' && !free) {                     // the one view that is framed to the window's shape
     const pose = poseOf('aerial');
     if (glide) glide.to = pose;
@@ -425,45 +478,80 @@ const lit = (m) => {
   m.customProgramCacheKey = () => 'room';
 };
 
-// The arena itself.
-new GLTFLoader().load(MODEL, ({ scene: arena }) => {
-  const markers = arena.getObjectByName('Markers');
-  if (markers) markers.visible = false;                  // design plates, not level geometry
-  arena.updateMatrixWorld(true);
-  const solids = [], lamps = [], materials = new Set();
-  arena.traverse((part) => {
-    if (part.isPointLight) lamps.push(part);
-    if (!part.isMesh) return;
-    part.castShadow = part.receiveShadow = true;
-    for (let o = part; o; o = o.parent) if (o === markers) return;
-    solids.push(part);
-    for (const m of [].concat(part.material)) {
-      materials.add(m);
-      if (m.map) m.map.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
-      if (m.emissiveIntensity > 1 && !m.emissiveMap) pads.add(m);
+// The keys for the file: the one on screen is pressed, and another loads its file in place of it.
+const modelKeys = document.querySelectorAll('#model button');
+for (const key of modelKeys) key.setAttribute('aria-pressed', FILES[key.dataset.model] === MODEL);
+document.getElementById('model').addEventListener('click', ({ target }) => {
+  const url = FILES[target.dataset.model];
+  if (url && url !== file) show(url);
+});
+
+// The arena itself, one file at a time.
+const about = document.getElementById('about');
+let arena = null;
+function forget(model) {   // let go of a file: its place in the scene, and what the graphics card held for it
+  scene.remove(model);
+  model.traverse((part) => {
+    part.geometry?.dispose();
+    for (const m of [].concat(part.material ?? [])) {
+      for (const value of Object.values(m)) if (value?.isTexture) value.dispose();
+      m.dispose();
     }
   });
-  for (const m of materials) lit(m);
-  // Cycles, which made the README's pictures, has every lit ceiling tile light its room. A browser has
-  // no such thing, so each of the file's point lamps gives way, where it stands, to a downlight as bright
-  // as the tile above it. The file itself is not touched.
-  for (const lamp of lamps) {
-    const down = new THREE.SpotLight(lamp.color, LAMP, 0, spread(lamp.getWorldPosition(new THREE.Vector3()), solids), 0.4, 2);
-    down.position.copy(lamp.position);
-    down.target.position.set(lamp.position.x, lamp.position.y - 1, lamp.position.z);
-    lamp.parent.add(down, down.target);
-    lamp.removeFromParent();
-  }
-  scene.add(arena);
-  renderer.shadowMap.needsUpdate = true;
-  lightAt(dusk);
-  status.style.opacity = 0;
-  setTimeout(() => status.remove(), 500);
-}, (e) => {
-  if (e.total) status.textContent = `Loading the arena… ${Math.round(100 * e.loaded / e.total)}%`;
-}, (error) => {
-  fail(`The arena could not be loaded (${error?.message ?? error}). Opened as a file, this page needs its folder served over HTTP.`);
-});
+}
+function show(url) {
+  file = url;
+  writeAddress();
+  new GLTFLoader().load(url, ({ scene: model }) => {
+    if (url !== file) return forget(model);   // another key was pressed while this one was on its way
+    if (arena) forget(arena);
+    pads.clear();
+    arena = model;
+    about.textContent = ABOUT[url] ?? about.textContent;
+    for (const key of modelKeys) key.setAttribute('aria-pressed', FILES[key.dataset.model] === url);
+    const markers = model.getObjectByName('Markers');
+    if (markers) markers.visible = false;                  // design plates, not level geometry
+    model.updateMatrixWorld(true);
+    const solids = [], lamps = [], materials = new Set();
+    model.traverse((part) => {
+      if (part.isPointLight) lamps.push(part);
+      if (!part.isMesh) return;
+      part.castShadow = part.receiveShadow = true;
+      for (let o = part; o; o = o.parent) if (o === markers) return;
+      solids.push(part);
+      for (const m of [].concat(part.material)) {
+        materials.add(m);
+        if (m.map) m.map.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+        // Left alone, three.js casts a one-sided material's shadows from its far side, and a shadow then
+        // stops short of each line indoors where a ceiling meets a wall: a thin lit hairline. Both sides,
+        // as the file with every part double-sided had.
+        m.shadowSide = THREE.DoubleSide;
+        if (m.emissiveIntensity > 1 && !m.emissiveMap) pads.add(m);
+      }
+    });
+    for (const m of materials) lit(m);
+    // Cycles, which made the README's pictures, has every lit ceiling tile light its room. A browser has
+    // no such thing, so each of the file's point lamps gives way, where it stands, to a downlight as bright
+    // as the tile above it. The file itself is not touched.
+    for (const lamp of lamps) {
+      const down = new THREE.SpotLight(lamp.color, LAMP, 0, spread(lamp.getWorldPosition(new THREE.Vector3()), solids), 0.4, 2);
+      down.position.copy(lamp.position);
+      down.target.position.set(lamp.position.x, lamp.position.y - 1, lamp.position.z);
+      lamp.parent.add(down, down.target);
+      lamp.removeFromParent();
+    }
+    scene.add(model);
+    renderer.shadowMap.needsUpdate = true;
+    lightAt(dusk);
+    status.style.opacity = 0;
+    setTimeout(() => status.remove(), 500);
+  }, (e) => {
+    if (e.total) status.textContent = `Loading the arena… ${Math.round(100 * e.loaded / e.total)}%`;
+  }, (error) => {
+    fail(`The arena could not be loaded (${error?.message ?? error}). Opened as a file, this page needs its folder served over HTTP.`);
+  });
+}
+show(MODEL);
 </script>
 </body>
 </html>
