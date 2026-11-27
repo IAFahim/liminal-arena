@@ -1,10 +1,11 @@
 """Pack a release: one zip per format, and a list of checksums.
 
-    python -I tools/package.py 1.0.0 /tmp/liminal-release
+    python -I tools/package.py 1.1.0 /tmp/liminal-release
 
 Writes liminal-arena-v<version>-<kind>.zip into the directory, and SHA256SUMS beside them:
 
     glb        the dressed arena and its manifest
+    packed     the dressed arena packed for a real-time viewer: one mesh, one atlas, no face out of sight
     fbx        the same, as FBX
     obj        the same, as OBJ with its .mtl and textures
     blend      the same, as a .blend
@@ -25,6 +26,7 @@ liminal = root / "models" / "liminal"
 # kind -> what goes in the zip, as (where it is, where it lands)
 PACKS = {
     "glb": [(liminal / "arena_liminal.glb", "arena_liminal.glb"), (liminal / "arena_liminal.json", "arena_liminal.json")],
+    "packed": [(liminal / "arena_liminal_packed.glb", "arena_liminal_packed.glb")],
     "fbx": [(liminal / "arena_liminal.fbx", "arena_liminal.fbx")],
     "obj": [(p, f"obj/{p.name}") for p in sorted((liminal / "obj").iterdir())],
     "blend": [(liminal / "arena_liminal.blend", "arena_liminal.blend")],
