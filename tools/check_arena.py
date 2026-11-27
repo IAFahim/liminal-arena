@@ -3,9 +3,14 @@ reached, and who sees whom.
 
     python check_arena.py models/arena_blockout.glb
     python check_arena.py models/liminal/arena_liminal.glb
+    python check_arena.py models/liminal/arena_liminal_packed.glb --marks models/liminal/arena_liminal.glb
 
 Standable floors come from ray casts on a 0.5 m grid; a player steps up 0.4 m, jumps
 1.05 m, drops any height, and runs at 5.5 m/s. Eyes are 1.6 m up.
+
+A packed file ships no design plates and its static parts are one mesh. `--marks` names the file
+it was packed from, for where the plates stand; the ways up are then not asked, as no part is
+left to hide: they are asked of the source, and the packed file of it by same_surfaces.py.
 """
 import sys
 from collections import deque
@@ -14,16 +19,26 @@ import bpy
 from mathutils import Vector
 
 STEP, JUMP, EYE, RUN = 0.4, 1.05, 1.6, 5.5
-glb = sys.argv[sys.argv.index("--") + 1] if "--" in sys.argv else sys.argv[1]
+args = sys.argv[1:]
+glb = args[args.index("--") + 1] if "--" in args else args[0]
+marked = args[args.index("--marks") + 1] if "--marks" in args else None      # the file a packed one came from
+PLATES = ("v1", "v2", "v3", "v4", "v5", "v6", "c1", "c2", "c3", "c4", "c5", "c6")
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
+meshes, marks = {}, {}
+if marked:
+    bpy.ops.import_scene.gltf(filepath=marked)
+    marks = {ob.name: ob.matrix_world.translation.copy() for ob in bpy.context.scene.objects
+             if ob.type == 'MESH' and ob.name in PLATES}
+    if len(marks) != len(PLATES):
+        raise SystemExit(f"check_arena: {marked} holds {len(marks)} of the {len(PLATES)} design plates")
+    bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.gltf(filepath=glb)
 scene = bpy.context.scene
-meshes, marks = {}, {}
 for ob in list(scene.objects):
     if ob.type != 'MESH':
         continue
-    if ob.name in ("v1", "v2", "v3", "v4", "v5", "v6", "c1", "c2", "c3", "c4", "c5", "c6"):
+    if ob.name in PLATES:
         marks[ob.name] = ob.matrix_world.translation.copy()
         ob.hide_viewport = True             # the plates are labels, not floor
     else:
@@ -142,30 +157,33 @@ for label, (name, floor) in SPOT.items():
         return "    none" if n not in full else f"{walk.get(n, full[n]):8.1f}{'' if n in walk else '*'}"
     print(f"{label:20} {fmt(att, att_walk):>9} {fmt(de, de_walk):>9}")
 
-print("\nWAYS UP  (the route named is hidden; what is left)")
-LOOKOUT_DOOR = ((-26, 21, 2), (-24, 22, 4.2))
-for label, name, floor, gone, shut, expect in [
-        ("store loft", "v3", 2, ("store_loft_ramp",), None, "unreachable"),
-        ("workshop loft", "v4", 2, ("workshop_loft_ramp",), None, "unreachable"),
-        ("walk", "v5", 2, ("walk_stairs",), None, "jump only"),
-        ("walk", "v5", 2, ("walk_stairs", "crate_b1", "crate_b2"), None, "unreachable"),
-        ("deck", "v2", 2.5, ("deck_ramp",), None, "walk"),
-        ("deck", "v2", 2.5, ("deck_stairs",), None, "walk"),
-        ("deck", "v2", 2.5, ("deck_ramp", "deck_stairs"), None, "unreachable"),
-        ("site A plateau", "c1", 2, ("a_ramp",), None, "walk"),
-        ("site A plateau", "c1", 2, ("a_ramp", "a_stairs"), None, "unreachable"),
-        ("lookout, its door shut", "v1", 2, (), LOOKOUT_DOOR, "jump only"),
-        ("store floor, off the loft, its ramp gone", (-24, -6), 0, ("store_loft_ramp",), None, "drop")]:
-    c = survey(gone, shut)
-    n = at(c, name, floor)
-    if expect == "drop":                 # off the loft on foot, but not back up onto it
-        up_loft = flood(c, (-24, -6, 0), jumps=False, drops=False)
-        got = "drop" if n in flood(c, (-13.5, -5, 2), jumps=False) and at(c, "v3", 2) not in up_loft else "no"
-    else:
-        got = ("walk" if n in flood(c, ATTACK, jumps=False) else
-               "jump only" if n in flood(c, ATTACK) else "unreachable")
-    print(f"  {'ok  ' if got == expect else 'FAIL'} without {' + '.join(gone) or '(door shut)':34} {label:40} {got}")
-survey()
+if marked:
+    print("\nWAYS UP  not asked of a packed file: its parts are one mesh and none is left to hide. Ask its source.")
+else:
+    print("\nWAYS UP  (the route named is hidden; what is left)")
+    LOOKOUT_DOOR = ((-26, 21, 2), (-24, 22, 4.2))
+    for label, name, floor, gone, shut, expect in [
+            ("store loft", "v3", 2, ("store_loft_ramp",), None, "unreachable"),
+            ("workshop loft", "v4", 2, ("workshop_loft_ramp",), None, "unreachable"),
+            ("walk", "v5", 2, ("walk_stairs",), None, "jump only"),
+            ("walk", "v5", 2, ("walk_stairs", "crate_b1", "crate_b2"), None, "unreachable"),
+            ("deck", "v2", 2.5, ("deck_ramp",), None, "walk"),
+            ("deck", "v2", 2.5, ("deck_stairs",), None, "walk"),
+            ("deck", "v2", 2.5, ("deck_ramp", "deck_stairs"), None, "unreachable"),
+            ("site A plateau", "c1", 2, ("a_ramp",), None, "walk"),
+            ("site A plateau", "c1", 2, ("a_ramp", "a_stairs"), None, "unreachable"),
+            ("lookout, its door shut", "v1", 2, (), LOOKOUT_DOOR, "jump only"),
+            ("store floor, off the loft, its ramp gone", (-24, -6), 0, ("store_loft_ramp",), None, "drop")]:
+        c = survey(gone, shut)
+        n = at(c, name, floor)
+        if expect == "drop":                 # off the loft on foot, but not back up onto it
+            up_loft = flood(c, (-24, -6, 0), jumps=False, drops=False)
+            got = "drop" if n in flood(c, (-13.5, -5, 2), jumps=False) and at(c, "v3", 2) not in up_loft else "no"
+        else:
+            got = ("walk" if n in flood(c, ATTACK, jumps=False) else
+                   "jump only" if n in flood(c, ATTACK) else "unreachable")
+        print(f"  {'ok  ' if got == expect else 'FAIL'} without {' + '.join(gone) or '(door shut)':34} {label:40} {got}")
+    survey()
 
 
 def eye(p):

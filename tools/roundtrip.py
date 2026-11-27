@@ -1,17 +1,29 @@
-"""Do the FBX, the OBJ and the .blend come back the size they went out, with their textures?
+"""Do the FBX, the OBJ and the .blend come back the size they went out, with their textures -- and
+does no file in models/ say where it was written?
 
     python -I tools/roundtrip.py models/liminal/arena_liminal.fbx models/liminal/obj/arena_liminal.obj \
         models/liminal/arena_liminal.blend
 
 Each is imported into an empty scene and its meshes measured in the world: the arena is
-x -40..40, y -28..28, z -1..7 once the file is back in Blender's axes.
+x -40..40, y -28..28, z -1..7 once the file is back in Blender's axes. A published file should
+not carry a path of the machine it was written on: the FBX exporter writes one before the name
+of every texture, and `examples/arena_liminal.py` cuts it out again.
 """
+import os
 import sys
+from pathlib import Path
 
 import bpy
 from mathutils import Vector
 
 fbx, obj, blend = sys.argv[1:4]
+
+files = [p for p in sorted((Path(__file__).resolve().parents[1] / "models").rglob("*")) if p.is_file()]
+home = os.path.expanduser("~").encode()
+said = [str(p.relative_to(Path(__file__).resolve().parents[1])) for p in files if home in p.read_bytes()]
+if said:
+    raise SystemExit(f"roundtrip: these files say where they were written: {', '.join(said)}")
+print(f"no file in models/ holds the path of this machine's home ({len(files)} files looked at)")
 
 
 def report(label):

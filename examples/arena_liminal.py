@@ -193,15 +193,23 @@ def world_faces(ob):
             for p in me.polygons]
 
 
+MICRON = 1e-6                    # a height this close to a cut line is on it
+
+
 def cut(ring, z, below):
-    """`ring` sliced at height `z`, the part below (or above) kept; a convex ring stays one."""
+    """`ring` sliced at height `z`, the part below (or above) kept; a convex ring stays one.
+    A height within a micron of `z` counts as on it: once a ramp is turned upright its foot
+    sits a few nanometres under zero, and without this the slice above zero dropped half the
+    ramp's underside and a slice of no area came out under it."""
     out = []
     for p, q in zip(ring, ring[1:] + ring[:1]):
-        inp, inq = (p.z <= z, q.z <= z) if below else (p.z >= z, q.z >= z)
+        inp, inq = (p.z <= z + MICRON, q.z <= z + MICRON) if below else (p.z >= z - MICRON, q.z >= z - MICRON)
         if inp:
             out.append(p)
         if inp != inq:
-            out.append(p.lerp(q, (z - p.z) / (q.z - p.z)))
+            t = (z - p.z) / (q.z - p.z)
+            if MICRON < t < 1 - MICRON:            # not a second copy of a corner already kept
+                out.append(p.lerp(q, t))
     return out
 
 
@@ -216,7 +224,7 @@ def courses(ring):
     """`ring` cut into `BAND`-tall courses, as (ring, the height it starts at)."""
     low, high = min(p.z for p in ring), max(p.z for p in ring)
     out = []
-    for k in range(math.floor(low / BAND), math.floor(high / BAND) + 1):
+    for k in range(math.floor(low / BAND + MICRON / BAND), math.floor(high / BAND + MICRON / BAND) + 1):
         piece = cut(cut(ring, k * BAND, False), (k + 1) * BAND, True)
         if len(piece) >= 3 and area(piece) > 1e-7:
             out.append((piece, k * BAND))
@@ -343,12 +351,15 @@ def leaf(d):
     sign = 1 if SWING[d["name"]][0] == "+" else -1
     jamb = d["b"] - THICK if HINGE.get(d["name"]) == "b" else d["a"]
     z0, z1 = d["floor"], d["floor"] + 2 * LEAF
+    # the wall's face on the side the door opens to. A building mirrored to the other half of the
+    # arena hands its corners over the other way round (x0 above x1), so which is which is not
+    # read from their names: by them, nine doors stood a metre inside their walls.
     if d["along_x"]:                      # the wall runs on x: the leaf stands out along y
-        face = d["y1"] if sign > 0 else d["y0"]
+        face = max(d["y0"], d["y1"]) if sign > 0 else min(d["y0"], d["y1"])
         (x0, x1), (y0, y1) = (jamb, jamb + THICK), sorted((face, face + sign * LEAF))
         along, root = Vector((0, sign, 0)), Vector((jamb, face, z0))
     else:
-        face = d["x1"] if sign > 0 else d["x0"]
+        face = max(d["x0"], d["x1"]) if sign > 0 else min(d["x0"], d["x1"])
         (x0, x1), (y0, y1) = sorted((face, face + sign * LEAF)), (jamb, jamb + THICK)
         along, root = Vector((sign, 0, 0)), Vector((face, jamb, z0))
     default = "door_wood_light" if d["name"].startswith(("se_", "workshop_")) else "door_wood"
@@ -388,7 +399,56 @@ def polish(glb):
                     + body + rest)
 
 
-def main():
+def _fbx_nodes(data, start, end, folder, to):
+    """The nodes of an FBX between `start` and `end` as bytes again, written from `to` on. A node is
+    four numbers and a name, then its properties, then its nodes and -- if it has any -- thirteen
+    zeros; the first number says where the node ends, and is what the cutting moves."""
+    out = bytearray()
+    pos = start
+    while pos < end:
+        stop, count, length, name = struct.unpack_from("<IIIB", data, pos)
+        first = pos + 13 + name                            # where its properties begin
+        props = data[first:first + length]
+        cuts = []
+        k = props.find(folder)
+        while k >= 5:                                      # a string's record: S, its length, the bytes, at most a zero
+            n = struct.unpack_from("<I", props, k - 4)[0]
+            if props[k - 5] == 83 and k + n <= len(props) and props.find(b"\0", k, k + n - 1) == -1:
+                cuts.append((k, n))
+            k = props.find(folder, k + 1)
+        for k, n in reversed(cuts):
+            cut = len(folder) + (props[k + len(folder):k + len(folder) + 1] in (b"/", b"\\"))
+            props = props[:k - 4] + struct.pack("<I", n - cut) + props[k + cut:k + n]
+        body = struct.pack("<II", count, len(props)) + data[pos + 12:first] + props
+        if stop > first + length:                          # it has nodes, and they end in the thirteen zeros
+            body += _fbx_nodes(data, first + length, stop - 13, folder, to + len(out) + 4 + len(body)) + bytes(13)
+        out += struct.pack("<I", to + len(out) + 4 + len(body)) + body
+        pos = stop
+    return bytes(out)
+
+
+def unpath(fbx, folder):
+    """One touch on the FBX the exporter wrote, read as the bytes it is. For every texture it wrote
+    the name of the file beside the FBX, as it should (`arena_liminal.fbm/x.png`) -- and the same
+    twice more under the path of `folder` on the machine that ran, which a published file should
+    not say. Every string that began with the folder is cut to what follows it, and as the file
+    counts its bytes, every count is made right again."""
+    data = fbx.read_bytes()
+    version = struct.unpack_from("<I", data, 23)[0]
+    if version >= 7500:                       # then its numbers are eight bytes wide, and are not read here
+        raise ValueError(f"arena_liminal: {fbx.name} is written in the layout of FBX {version}, not 7400")
+    pos = 27
+    while struct.unpack_from("<I", data, pos)[0]:         # over the top-level nodes to the zeros that end them
+        pos = struct.unpack_from("<I", data, pos)[0]
+    tail = data[-140:]                                      # the version again, a hundred and twenty zeros, a mark
+    head = data[:27] + _fbx_nodes(data, 27, pos, str(folder).encode(), 27) + data[pos:pos + 33]
+    pad = -len(head) % 16 or 16                             # zeros up to a multiple of sixteen; sixteen, if it is one
+    fbx.write_bytes(head + bytes(pad) + tail)
+
+
+def build():
+    """The dressed arena in the scene: its parts under their groups, its doors, its lamps and its
+    spawns. `tools/pack_arena.py` starts from what this leaves in the scene."""
     parts = blockout.build()
     bpy.context.view_layer.update()
     root = empty("Arena")
@@ -434,6 +494,11 @@ def main():
     for m in list(bpy.data.materials):
         if "s3d_material" in m:
             bpy.data.materials.remove(m)
+    return parts, lamps
+
+
+def main():
+    parts, lamps = build()
     OUT.mkdir(parents=True, exist_ok=True)
     bpy.ops.export_scene.gltf(filepath=str(OUT / "arena_liminal.glb"), export_format='GLB', export_image_format='AUTO',
                               export_texcoords=True, export_normals=True, export_materials='EXPORT', export_yup=True,
@@ -441,6 +506,7 @@ def main():
     polish(OUT / "arena_liminal.glb")
     bpy.ops.export_scene.fbx(filepath=str(OUT / "arena_liminal.fbx"), object_types={'EMPTY', 'MESH', 'LIGHT'},
                              path_mode='COPY', embed_textures=True, bake_anim=False)
+    unpath(OUT / "arena_liminal.fbx", OUT)
     shutil.rmtree(OUT / "obj", ignore_errors=True)   # the OBJ's textures land beside it, so it gets a room of
     (OUT / "obj").mkdir()                            # its own, emptied first: no texture outlives its use
     bpy.ops.wm.obj_export(filepath=str(OUT / "obj" / "arena_liminal.obj"), forward_axis='NEGATIVE_Z', up_axis='Y',
